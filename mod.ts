@@ -1,11 +1,12 @@
 // deno-lint-ignore-file no-empty require-await
 import * as Dotenv from "https://deno.land/std@0.217.0/dotenv/mod.ts";
 import { Future } from "npm:@hazae41/future@1.0.3";
-import { RpcErr, RpcError, RpcInvalidParamsError, RpcOk, RpcRequest, RpcRequestInit } from "npm:@hazae41/jsonrpc@1.0.5";
+import { RpcErr, RpcError, RpcInvalidParamsError, RpcMethodNotFoundError, RpcOk, RpcRequest, RpcRequestInit } from "npm:@hazae41/jsonrpc@1.0.5";
 import { Mutex } from "npm:@hazae41/mutex@1.2.12";
 import { Memory, NetworkMixin, base16_decode_mixed, base16_encode_lower, initBundledOnce } from "npm:@hazae41/network-bundle@1.2.1";
 import { None, Some } from "npm:@hazae41/option@1.0.27";
 import * as Ethers from "npm:ethers";
+import { Columns, MicroDB, Orders } from "./mods/microdb/microdb.ts";
 import Abi from "./token.abi.json" with { type: "json" };
 
 export async function main() {
@@ -67,6 +68,9 @@ export async function serve(params: {
   let minimumZeroHex = `0x${minimumBase16}`
 
   const balanceByUuid = new Map<string, bigint>()
+  const columnsByUuid = new Map<string, Columns>()
+
+  const db = new MicroDB()
 
   const onHttpRequest = async (request: Request) => {
     const url = new URL(request.url)
@@ -76,16 +80,16 @@ export async function serve(params: {
     if (session == null)
       return new Response("Bad Request", { status: 400 })
 
-    const onRequestOrNoneOrSomeErr = async (request: RpcRequestInit) => {
+    const onRequestOrErr = async (request: RpcRequestInit) => {
       try {
         const option = await routeOrNone(request)
 
         if (option.isNone())
-          return option
+          return new RpcErr(request.id, new RpcMethodNotFoundError())
 
-        return new Some(new RpcOk(request.id, option.get()))
+        return new RpcOk(request.id, option.get())
       } catch (e: unknown) {
-        return new Some(new RpcErr(request.id, RpcError.rewrap(e)))
+        return new RpcErr(request.id, RpcError.rewrap(e))
       }
     }
 
@@ -96,6 +100,8 @@ export async function serve(params: {
         return new Some(await onNetTip(request))
       if (request.method === "net_signal")
         return new Some(await onNetSignal(request))
+      if (request.method === "net_search")
+        return new Some(await onNetSearch(request))
       return new None()
     }
 
@@ -224,7 +230,49 @@ export async function serve(params: {
     }
 
     const onNetSignal = async (request: RpcRequestInit) => {
-      const [secretZeroHex] = request.params as [string]
+      const [row] = request.params as [Columns]
+
+      if (typeof row !== "object")
+        throw new RpcInvalidParamsError()
+      if (Object.keys(row).length > 100)
+        throw new RpcInvalidParamsError()
+
+      let [balanceBigInt = 0n] = [balanceByUuid.get(session)]
+      balanceBigInt = balanceBigInt - (2n ** 20n)
+      balanceByUuid.set(session, balanceBigInt)
+
+      if (balanceBigInt < 0n)
+        return new Response("Payment Required", { status: 402 })
+
+      const previous = columnsByUuid.get(session)
+
+      if (previous != null)
+        db.remove(previous)
+
+      columnsByUuid.set(session, row)
+      db.append(row)
+    }
+
+    const onNetSearch = async (request: RpcRequestInit) => {
+      const [orders, filters] = request.params as [Orders, Columns]
+
+      if (typeof orders !== "object")
+        throw new RpcInvalidParamsError()
+      if (typeof filters !== "object")
+        throw new RpcInvalidParamsError()
+      if (Object.keys(orders).length > 100)
+        throw new RpcInvalidParamsError()
+      if (Object.keys(filters).length > 100)
+        throw new RpcInvalidParamsError()
+
+      let [balanceBigInt = 0n] = [balanceByUuid.get(session)]
+      balanceBigInt = balanceBigInt - (2n ** 16n)
+      balanceByUuid.set(session, balanceBigInt)
+
+      if (balanceBigInt < 0n)
+        return new Response("Payment Required", { status: 402 })
+
+      return db.get(orders, filters)
     }
 
     if (request.headers.get("upgrade") !== "websocket") {
@@ -236,103 +284,31 @@ export async function serve(params: {
       if (contentType !== "application/json")
         return new Response("Unsupported Media Type", { status: 415 })
 
-      const data = RpcRequest.from(await request.json())
-
-      const option = await onRequestOrNoneOrSomeErr(data)
-
-      if (option.isSome()) {
-        const headers = { "content-type": "application/json" }
-        const body = JSON.stringify(option.get())
-
-        return new Response(body, { status: 200, headers })
-      }
+      const input = RpcRequest.from(await request.json())
+      const output = await onRequestOrErr(input)
 
       const headers = { "content-type": "application/json" }
-      const body = JSON.stringify(data)
+      const body = JSON.stringify(output)
 
-      let [balanceBigInt = 0n] = [balanceByUuid.get(session)]
-      balanceBigInt = balanceBigInt - BigInt(body.length)
-      balanceByUuid.set(session, balanceBigInt)
-
-      if (balanceBigInt < 0n)
-        return new Response("Payment Required", { status: 402 })
-
-      const response = await fetch(target, { method: "POST", headers, body })
-      const text = await response.text()
-
-      balanceBigInt = balanceBigInt - BigInt(text.length)
-      balanceByUuid.set(session, balanceBigInt)
-
-      if (balanceBigInt < 0n)
-        return new Response("Payment Required", { status: 402 })
-
-      return new Response(text, { status: response.status })
+      return new Response(body, { status: 200, headers })
     }
-
-    const target = rpcUrlWs
-
-    if (target == null)
-      return new Response("Bad Gateway", { status: 502 })
 
     const upgrade = Deno.upgradeWebSocket(request)
 
     const client = upgrade.socket
-    const server = new WebSocket(target)
-
-    const open = new Promise<unknown>((ok, err) => {
-      server.addEventListener("open", ok)
-      server.addEventListener("error", err)
-    }).catch(console.warn)
 
     const closeOrIgnore = () => {
       try {
         client.close()
       } catch { }
-
-      try {
-        server.close()
-      } catch { }
     }
 
     const onClientMessageOrClose = async (message: string) => {
       try {
-        await open
-
         const request = JSON.parse(message) as RpcRequestInit
-        const option = await onRequestOrNoneOrSomeErr(request)
+        const response = await onRequestOrErr(request)
 
-        if (option.isSome()) {
-          client.send(JSON.stringify(option.get()))
-          return
-        }
-
-        let [balanceBigInt = 0n] = [balanceByUuid.get(session)]
-        balanceBigInt = balanceBigInt - BigInt(message.length)
-        balanceByUuid.set(session, balanceBigInt)
-
-        if (balanceBigInt < 0n) {
-          closeOrIgnore()
-          return
-        }
-
-        server.send(message)
-      } catch {
-        closeOrIgnore()
-      }
-    }
-
-    const onServerMessageOrClose = async (message: string) => {
-      try {
-        let [balanceBigInt = 0n] = [balanceByUuid.get(session)]
-        balanceBigInt = balanceBigInt - BigInt(message.length)
-        balanceByUuid.set(session, balanceBigInt)
-
-        if (balanceBigInt < 0n) {
-          closeOrIgnore()
-          return
-        }
-
-        client.send(message)
+        client.send(JSON.stringify(response))
       } catch {
         closeOrIgnore()
       }
@@ -344,17 +320,7 @@ export async function serve(params: {
       return await onClientMessageOrClose(event.data)
     })
 
-    server.addEventListener("message", async (event) => {
-      if (typeof event.data !== "string")
-        return
-      return await onServerMessageOrClose(event.data)
-    })
-
     client.addEventListener("close", () => closeOrIgnore())
-    server.addEventListener("close", (e) => {
-      console.error(e)
-      closeOrIgnore()
-    })
 
     return upgrade.response
   }

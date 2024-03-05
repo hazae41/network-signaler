@@ -1,4 +1,4 @@
-export interface Row {
+export interface Columns {
   readonly [key: string]: unknown
 }
 
@@ -6,21 +6,17 @@ export interface Orders {
   readonly [key: string]: Ordering
 }
 
-export interface Filters {
-  readonly [key: string]: unknown
-}
-
 export type Ordering =
   | "ascending"
   | "descending"
 
 export interface Order {
-  readonly ascending: Row[]
-  readonly descending: Row[]
+  readonly ascending: Columns[]
+  readonly descending: Columns[]
 }
 
 export interface Index {
-  readonly map: Map<unknown, Row[]>
+  readonly map: Map<unknown, Columns[]>
 }
 
 export class MicroDB {
@@ -33,7 +29,7 @@ export class MicroDB {
   /**
    * Find the smallest set of rows based on the orders and filters.
    */
-  #smallest(orders: Orders, filters: Filters) {
+  #smallest(orders: Orders, filters: Columns) {
     let smallest = undefined
 
     for (const key in filters) {
@@ -70,7 +66,7 @@ export class MicroDB {
     return smallest
   }
 
-  get(orders: Orders, filters: Filters) {
+  get(orders: Orders, filters: Columns) {
     const smallest = this.#smallest(orders, filters)
 
     return smallest.filter(row => {
@@ -97,7 +93,7 @@ export class MicroDB {
     })
   }
 
-  append(row: Row) {
+  append(row: Columns) {
     for (const key in row) {
       if (typeof row[key] === "bigint") {
         const order = this.orderByKey.get(key)
@@ -144,7 +140,7 @@ export class MicroDB {
         const index = this.indexByKey.get(key)
 
         if (index == null) {
-          const map = new Map<unknown, Row[]>()
+          const map = new Map<unknown, Columns[]>()
 
           const value = row[key]
           map.set(value, [row])
@@ -166,7 +162,7 @@ export class MicroDB {
     }
   }
 
-  remove(row: Row) {
+  remove(row: Columns) {
     for (const key in row) {
       if (typeof row[key] === "bigint") {
         const order = this.orderByKey.get(key)
