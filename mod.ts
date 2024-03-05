@@ -72,7 +72,7 @@ export async function serve(params: {
 
   const db = new MicroDB()
 
-  const onHttpRequest = async (request: Request) => {
+  const onHttpRequest = async (request: Request, info: Deno.ServeHandlerInfo) => {
     const url = new URL(request.url)
 
     const session = url.searchParams.get("session")
@@ -80,37 +80,12 @@ export async function serve(params: {
     if (session == null)
       return new Response("Bad Request", { status: 400 })
 
-    const onRequestOrErr = async (request: RpcRequestInit) => {
-      try {
-        const option = await routeOrNone(request)
-
-        if (option.isNone())
-          return new RpcErr(request.id, new RpcMethodNotFoundError())
-
-        return new RpcOk(request.id, option.get())
-      } catch (e: unknown) {
-        return new RpcErr(request.id, RpcError.rewrap(e))
-      }
-    }
-
-    const routeOrNone = async (request: RpcRequestInit) => {
-      if (request.method === "net_get")
-        return new Some(await onNetGet(request))
-      if (request.method === "net_tip")
-        return new Some(await onNetTip(request))
-      if (request.method === "net_signal")
-        return new Some(await onNetSignal(request))
-      if (request.method === "net_search")
-        return new Some(await onNetSearch(request))
-      return new None()
-    }
-
     const onNetGet = async (_: RpcRequestInit) => {
       return { chainIdString, contractZeroHex, receiverZeroHex, nonceZeroHex, minimumZeroHex }
     }
 
-    const onNetTip = async (request: RpcRequestInit) => {
-      const [secretZeroHex] = request.params as [string]
+    const onNetTip = async (rpcRequest: RpcRequestInit) => {
+      const [secretZeroHex] = rpcRequest.params as [string]
 
       if (typeof secretZeroHex !== "string")
         throw new RpcInvalidParamsError()
@@ -229,8 +204,8 @@ export async function serve(params: {
       return valueBigInt.toString()
     }
 
-    const onNetSignal = async (request: RpcRequestInit) => {
-      const [row] = request.params as [Columns]
+    const onNetSignal = async (rpcRequest: RpcRequestInit) => {
+      const [row] = rpcRequest.params as [Columns]
 
       if (typeof row !== "object")
         throw new RpcInvalidParamsError()
@@ -253,8 +228,8 @@ export async function serve(params: {
       db.append(row)
     }
 
-    const onNetSearch = async (request: RpcRequestInit) => {
-      const [orders, filters] = request.params as [Orders, Columns]
+    const onNetSearch = async (rpcRequest: RpcRequestInit) => {
+      const [orders, filters] = rpcRequest.params as [Orders, Columns]
 
       if (typeof orders !== "object")
         throw new RpcInvalidParamsError()
@@ -284,8 +259,31 @@ export async function serve(params: {
       if (contentType !== "application/json")
         return new Response("Unsupported Media Type", { status: 415 })
 
+      const onRequest = async (request: RpcRequestInit) => {
+        try {
+          const option = await routeOrNone(request)
+
+          if (option.isNone())
+            return new RpcErr(request.id, new RpcMethodNotFoundError())
+
+          return new RpcOk(request.id, option.get())
+        } catch (e: unknown) {
+          return new RpcErr(request.id, RpcError.rewrap(e))
+        }
+      }
+
+      const routeOrNone = async (request: RpcRequestInit) => {
+        if (request.method === "net_get")
+          return new Some(await onNetGet(request))
+        if (request.method === "net_tip")
+          return new Some(await onNetTip(request))
+        if (request.method === "net_search")
+          return new Some(await onNetSearch(request))
+        return new None()
+      }
+
       const input = RpcRequest.from(await request.json())
-      const output = await onRequestOrErr(input)
+      const output = await onRequest(input)
 
       const headers = { "content-type": "application/json" }
       const body = JSON.stringify(output)
@@ -301,12 +299,44 @@ export async function serve(params: {
       try {
         client.close()
       } catch { }
+
+      const columns = columnsByUuid.get(session)
+
+      if (columns != null)
+        db.remove(columns)
+
+      return
+    }
+
+    const onRequest = async (request: RpcRequestInit) => {
+      try {
+        const option = await routeAndOption(request)
+
+        if (option.isNone())
+          return new RpcErr(request.id, new RpcMethodNotFoundError())
+
+        return new RpcOk(request.id, option.get())
+      } catch (e: unknown) {
+        return new RpcErr(request.id, RpcError.rewrap(e))
+      }
+    }
+
+    const routeAndOption = async (request: RpcRequestInit) => {
+      if (request.method === "net_get")
+        return new Some(await onNetGet(request))
+      if (request.method === "net_tip")
+        return new Some(await onNetTip(request))
+      if (request.method === "net_signal")
+        return new Some(await onNetSignal(request))
+      if (request.method === "net_search")
+        return new Some(await onNetSearch(request))
+      return new None()
     }
 
     const onClientMessageOrClose = async (message: string) => {
       try {
         const request = JSON.parse(message) as RpcRequestInit
-        const response = await onRequestOrErr(request)
+        const response = await onRequest(request)
 
         client.send(JSON.stringify(response))
       } catch {

@@ -38,14 +38,22 @@ export class MicroDB {
       if (index == null)
         return []
 
-      const rows = index.map.get(filters[key])
+      const value = filters[key]
 
-      if (rows == null)
-        return []
+      const list = Array.isArray(value)
+        ? value
+        : [value]
 
-      if (smallest == null || rows.length < smallest.length)
-        smallest = rows
-      continue
+      for (const subvalue of list) {
+        const rows = index.map.get(subvalue)
+
+        if (rows == null)
+          return []
+
+        if (smallest == null || rows.length < smallest.length)
+          smallest = rows
+        continue
+      }
     }
 
     for (const key in orders) {
@@ -70,9 +78,26 @@ export class MicroDB {
     const smallest = this.#smallest(orders, filters)
 
     return smallest.filter(row => {
-      for (const key in filters)
-        if (filters[key] !== row[key])
+      for (const key in filters) {
+        if (filters[key] === row[key])
+          continue
+        if (typeof filters[key] !== typeof row[key])
           return false
+
+        if (Array.isArray(filters[key])) {
+          const a = filters[key] as unknown[]
+          const b = row[key] as unknown[]
+
+          for (const subvalue of a)
+            if (!b.includes(subvalue))
+              return false
+
+          continue
+        }
+
+        return false
+      }
+
       return true
     }).sort((a, b) => {
       for (const key in orders) {
@@ -143,19 +168,32 @@ export class MicroDB {
           const map = new Map<unknown, Columns[]>()
 
           const value = row[key]
-          map.set(value, [row])
+
+          const list = Array.isArray(value)
+            ? value
+            : [value]
+
+          for (const value of list)
+            map.set(value, [row])
 
           this.indexByKey.set(key, { map })
         } else {
           const { map } = index
 
           const value = row[key]
-          const rows = map.get(value)
 
-          if (rows == null) {
-            map.set(value, [row])
-          } else {
-            rows.push(row)
+          const list = Array.isArray(value)
+            ? value
+            : [value]
+
+          for (const subvalue of list) {
+            const rows = map.get(subvalue)
+
+            if (rows == null) {
+              map.set(subvalue, [row])
+            } else {
+              rows.push(row)
+            }
           }
         }
       }
@@ -189,13 +227,20 @@ export class MicroDB {
           const { map } = index
 
           const value = row[key]
-          const rows = map.get(value)
 
-          if (rows != null) {
-            const i = rows.indexOf(row)
+          const list = Array.isArray(value)
+            ? value
+            : [value]
 
-            if (i !== -1)
-              rows.splice(i, 1)
+          for (const subvalue of list) {
+            const rows = map.get(subvalue)
+
+            if (rows != null) {
+              const i = rows.indexOf(row)
+
+              if (i !== -1)
+                rows.splice(i, 1)
+            }
           }
         }
       }
