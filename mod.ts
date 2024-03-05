@@ -72,13 +72,15 @@ export async function serve(params: {
 
   const db = new MicroDB()
 
-  const onHttpRequest = async (request: Request, info: Deno.ServeHandlerInfo) => {
+  const onHttpRequest = async (request: Request) => {
     const url = new URL(request.url)
 
     const session = url.searchParams.get("session")
 
     if (session == null)
       return new Response("Bad Request", { status: 400 })
+
+    const columnsByUuid = new Map<string, Columns>()
 
     const onNetGet = async (_: RpcRequestInit) => {
       return { chainIdString, contractZeroHex, receiverZeroHex, nonceZeroHex, minimumZeroHex }
@@ -205,7 +207,7 @@ export async function serve(params: {
     }
 
     const onNetSignal = async (rpcRequest: RpcRequestInit) => {
-      const [row] = rpcRequest.params as [Columns]
+      const [uuid, row] = rpcRequest.params as [string, Columns]
 
       if (typeof row !== "object")
         throw new RpcInvalidParamsError()
@@ -219,12 +221,12 @@ export async function serve(params: {
       if (balanceBigInt < 0n)
         return new Response("Payment Required", { status: 402 })
 
-      const previous = columnsByUuid.get(session)
+      const previous = columnsByUuid.get(uuid)
 
       if (previous != null)
         db.remove(previous)
 
-      columnsByUuid.set(session, row)
+      columnsByUuid.set(uuid, row)
       db.append(row)
     }
 
@@ -296,16 +298,12 @@ export async function serve(params: {
     const client = upgrade.socket
 
     const closeOrIgnore = () => {
+      for (const columns of columnsByUuid.values())
+        db.remove(columns)
+
       try {
         client.close()
       } catch { }
-
-      const columns = columnsByUuid.get(session)
-
-      if (columns != null)
-        db.remove(columns)
-
-      return
     }
 
     const onRequest = async (request: RpcRequestInit) => {
