@@ -25,7 +25,7 @@ export async function main(prefix = "") {
 }
 
 export async function serve(params: {
-  privateKeyZeroHex: string,
+  readonly privateKeyZeroHex: string,
 }) {
   const { privateKeyZeroHex } = params
 
@@ -68,7 +68,6 @@ export async function serve(params: {
   let minimumZeroHex = `0x${minimumBase16}`
 
   const balanceByUuid = new Map<string, bigint>()
-  const columnsByUuid = new Map<string, Columns>()
 
   const db = new MicroDB()
 
@@ -228,6 +227,8 @@ export async function serve(params: {
 
       columnsByUuid.set(uuid, row)
       db.append(row)
+
+      console.log(`Got signal for ${JSON.stringify(row)}`)
     }
 
     const onNetSearch = async (rpcRequest: RpcRequestInit) => {
