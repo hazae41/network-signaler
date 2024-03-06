@@ -32,7 +32,7 @@ You just need
 Then clone the repository (or fork-then-clone)
 
 ```bash
-git clone https://github.com/hazae41/network-ws-to-tcp-proxy && cd ./network-ws-to-tcp-proxy
+git clone https://github.com/hazae41/network-signaler && cd ./network-signaler
 ```
 
 Setup environment variables (see list below) by creating a `.env.local` file
@@ -103,7 +103,9 @@ e.g. `8080`
 
 The paths to your TLS certificate and private key
 
-e.g. `/etc/letsencrypt/live/example.com/fullchain.pem` and `/etc/letsencrypt/live/example.com/privkey.pem`
+**They must be in a Docker accessible directory**
+
+e.g. `./tls/fullchain.pem` and `./tls/privkey.pem`
 
 #### `PRIVATE_KEY_ZERO_HEX` (required)
 
