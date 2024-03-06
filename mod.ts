@@ -6,14 +6,14 @@ import { Mutex } from "npm:@hazae41/mutex@1.2.12";
 import { Memory, NetworkMixin, base16_decode_mixed, base16_encode_lower, initBundledOnce } from "npm:@hazae41/network-bundle@1.2.1";
 import { None, Some } from "npm:@hazae41/option@1.0.27";
 import * as Ethers from "npm:ethers";
-import { Columns, MicroDB, Orders } from "./mods/microdb/microdb.ts";
+import { Columns, MicroDB, Orders } from "./libs/microdb/microdb.ts";
 import Abi from "./token.abi.json" with { type: "json" };
 
-export async function main() {
+export async function main(prefix = "") {
   const envPath = new URL(import.meta.resolve("./.env.local")).pathname
 
   const {
-    PRIVATE_KEY_ZERO_HEX = Deno.env.get("PRIVATE_KEY_ZERO_HEX"),
+    PRIVATE_KEY_ZERO_HEX = Deno.env.get(prefix + "PRIVATE_KEY_ZERO_HEX"),
   } = await Dotenv.load({ envPath, examplePath: null })
 
   if (PRIVATE_KEY_ZERO_HEX == null)

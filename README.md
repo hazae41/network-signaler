@@ -1,8 +1,8 @@
-# Network JSON-RPC guard
+# Network signaler
 
-Free JSON-RPC using [Network](https://github.com/stars/hazae41/lists/network)
+Service signaler using [Network](https://github.com/stars/hazae41/lists/network)
 
-This acts as a payment guard and proxies requests to a JSON-RPC endpoint using both WebSocket and HTTP.
+This acts as a marketplace between services and anonymous consumers.
 
 ## Getting started
 
@@ -113,22 +113,6 @@ This account must have some xDAI (gas on Gnosis chain).
 
 e.g. `0x35609a4c7e0334d76e15d107c52ee4e9beab1199556cef78fd8624351c0e2c8c`
 
-#### `RPC_URL_HTTP` (required if you want to use HTTP)
-
-Your JSON-RPC endpoint for HTTP requests
-
-You can include a private token in the url
-
-e.g. `https://mainnet.infura.io/v3/b6bf7d3508c941499b10025c0776eaf8`
-
-#### `RPC_URL_WS` (required if you want to use WebSocket)
-
-Your JSON-RPC endpoint for WebSocket requests
-
-You can include a private token in the url
-
-e.g. `wss://mainnet.infura.io/ws/v3/b6bf7d3508c941499b10025c0776eaf8`
-
 ## Protocol
 
 ### HTTP
@@ -144,18 +128,6 @@ Connect to the proxy via WebSocket with the following URL query parameters
 - `session` -> A unique private random unguessable string for your session (e.g. `crypto.randomUUID()`)
 
 e.g. `ws://localhost:8000/?session=22deac58-7e01-4ddb-b9c4-07c73a32d1b5`
-
-### Price
-
-The price is 1 wei = 1 char of communication (`balance -= message.length`)
-- Your balance is withdrawn when you send messages to the JSON-RPC target
-- Your balance is withdrawn when the JSON-RPC target sends you messages
-
-**You MUST PAY BEFORE talking with the JSON-RPC target**
-
-All connections are closed (ws) or errored (http) when your balance is negative
-
-So you must count how many bytes you sent/received and pay when your balance is low
 
 ### JSON-RPC
 
@@ -208,3 +180,15 @@ It will return the value added to your balance as a decimal bigint string
   result: "123456789123456789"
 }
 ```
+
+#### net_signal
+
+Price: TODO
+
+TODO
+
+#### net_search
+
+Price: TODO
+
+TODO
