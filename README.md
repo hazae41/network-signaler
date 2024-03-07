@@ -152,7 +152,7 @@ new WebSocket("wss://HOSTNAME[:PORT]")
 
 If you see no error, then you can register your proxy by calling `register` with `HOSTNAME[:PORT]`
 
-https://gnosisscan.io/address/0x23Ece04aF67cC4c484f3A4b136A6F97b76A12Ebe#writeContract
+https://gnosisscan.io/address/0xf1ec32C5DddbCb5652509a26E515aCCBFA4Da128#writeContract
 
 <img src="https://github.com/hazae41/network-ws-to-tcp-proxy/assets/4405263/6296cb76-3dc8-4b58-a6a0-7ab620f1ec99" width="500" />
 
