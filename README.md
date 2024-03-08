@@ -129,6 +129,10 @@ Your node should
 You can test the connection to your proxy by running the following code in the DevTools console of a non-CSP-protected page (e.g. the new tab page on Chrome)
 
 ```tsx
+await fetch("https://HOSTNAME[:PORT]")
+```
+
+```tsx
 new WebSocket("wss://HOSTNAME[:PORT]")
 ```
 
@@ -139,10 +143,18 @@ new WebSocket("wss://HOSTNAME[:PORT]")
 > For example, if your proxy is on a cloud hosting, the port should be 443, so you need to do
 >
 > ```tsx
+> await fetch("https://signal.mywebsite.com")
+> ```
+> 
+> ```tsx
 > new WebSocket("wss://signal.mywebsite.com")
 > ```
 >
 > If you self-host your proxy on port 12345, you need to do
+> 
+> ```tsx
+> await fetch("https://signal.mywebsite.com:12345")
+> ```
 > 
 > ```tsx
 > new WebSocket("wss://signal.mywebsite.com:12345")
