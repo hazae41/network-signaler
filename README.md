@@ -118,7 +118,7 @@ e.g. `0x35609a4c7e0334d76e15d107c52ee4e9beab1199556cef78fd8624351c0e2c8c`
 You can register your node so it can be used by applications and services
 
 Your node should 
-- be publicly accessible via WebSocket-over-HTTPS (this should be the case if you used a cloud hosting)
+- be publicly accessible via HTTPS (this should be the case if you used a cloud hosting)
 - respond with correct access-control headers (this should be the case if you used a cloud hosting)
 - have a correct uptime (this should be the case if you pay for it)
 
