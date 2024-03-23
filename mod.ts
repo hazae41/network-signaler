@@ -1,5 +1,6 @@
 // deno-lint-ignore-file no-empty require-await
 import * as Dotenv from "https://deno.land/std@0.217.0/dotenv/mod.ts";
+import { Columns, Database, Orders } from "npm:@hazae41/decibel@1.0.1";
 import { Future } from "npm:@hazae41/future@1.0.3";
 import { RpcErr, RpcError, RpcInvalidParamsError, RpcMethodNotFoundError, RpcOk, RpcRequest, RpcRequestInit } from "npm:@hazae41/jsonrpc@1.0.5";
 import { Mutex } from "npm:@hazae41/mutex@1.2.12";
@@ -7,7 +8,6 @@ import { Memory, NetworkMixin, base16_decode_mixed, base16_encode_lower, initBun
 import { None, Some } from "npm:@hazae41/option@1.0.27";
 import * as Ethers from "npm:ethers";
 import { warn } from "./libs/ethers/mod.ts";
-import { Columns, MicroDB, Orders } from "./libs/microdb/microdb.ts";
 import Abi from "./token.abi.json" with { type: "json" };
 
 export async function main(prefix = "") {
@@ -70,7 +70,7 @@ export async function serve(params: {
 
   const balanceByUuid = new Map<string, bigint>()
 
-  const db = new MicroDB()
+  const database = new Database()
 
   const claim = async (pendingTotalValueBigInt2: bigint, pendingSecretZeroHexArray2: string[]) => {
     const backpressure = mutex.locked
@@ -197,10 +197,10 @@ export async function serve(params: {
       const previous = columnsByUuid.get(uuid)
 
       if (previous != null)
-        db.remove(previous)
+        database.remove(previous)
 
       columnsByUuid.set(uuid, row)
-      db.append(row)
+      database.append(row)
 
       console.log(`Got signal for ${JSON.stringify(row)}`)
     }
@@ -224,7 +224,7 @@ export async function serve(params: {
       if (balanceBigInt < 0n)
         return new Response("Payment Required", { status: 402 })
 
-      return db.get(orders, filters)
+      return database.get(orders, filters)
     }
 
     if (request.headers.get("upgrade") !== "websocket") {
@@ -274,7 +274,7 @@ export async function serve(params: {
 
     const closeOrIgnore = () => {
       for (const columns of columnsByUuid.values())
-        db.remove(columns)
+        database.remove(columns)
 
       try {
         client.close()
