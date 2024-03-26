@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-empty require-await
 import * as Dotenv from "https://deno.land/std@0.217.0/dotenv/mod.ts";
-import { Columns, Database, Orders } from "npm:@hazae41/decibel@1.0.1";
+import { Data, Database, Filters, Orders } from "npm:@hazae41/decibel@2.0.0";
 import { Future } from "npm:@hazae41/future@1.0.3";
 import { RpcErr, RpcError, RpcInvalidParamsError, RpcMethodNotFoundError, RpcOk, RpcRequest, RpcRequestInit } from "npm:@hazae41/jsonrpc@1.0.5";
 import { Mutex } from "npm:@hazae41/mutex@1.2.12";
@@ -130,7 +130,7 @@ export async function serve(params: {
     if (session == null)
       return new Response("Bad Request", { status: 400 })
 
-    const columnsByUuid = new Map<string, Columns>()
+    const dataByUuid = new Map<string, Data>()
 
     const onNetGet = async (_: RpcRequestInit) => {
       return { chainIdString, contractZeroHex, receiverZeroHex, nonceZeroHex, minimumZeroHex }
@@ -180,7 +180,7 @@ export async function serve(params: {
     }
 
     const onNetSignal = async (rpcRequest: RpcRequestInit) => {
-      const [uuid, row] = rpcRequest.params as [string, Columns]
+      const [uuid, row] = rpcRequest.params as [string, Data]
 
       if (typeof row !== "object")
         throw new RpcInvalidParamsError()
@@ -194,19 +194,19 @@ export async function serve(params: {
       if (balanceBigInt < 0n)
         return new Response("Payment Required", { status: 402 })
 
-      const previous = columnsByUuid.get(uuid)
+      const previous = dataByUuid.get(uuid)
 
       if (previous != null)
         database.remove(previous)
 
-      columnsByUuid.set(uuid, row)
+      dataByUuid.set(uuid, row)
       database.append(row)
 
       console.log(`Got signal for ${JSON.stringify(row)}`)
     }
 
     const onNetSearch = async (rpcRequest: RpcRequestInit) => {
-      const [orders, filters] = rpcRequest.params as [Orders, Columns]
+      const [orders, filters] = rpcRequest.params as [Orders, Filters]
 
       if (typeof orders !== "object")
         throw new RpcInvalidParamsError()
@@ -273,7 +273,7 @@ export async function serve(params: {
     const client = upgrade.socket
 
     const closeOrIgnore = () => {
-      for (const columns of columnsByUuid.values())
+      for (const columns of dataByUuid.values())
         database.remove(columns)
 
       try {
